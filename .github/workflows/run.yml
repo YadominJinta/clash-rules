@@ -106,10 +106,14 @@ jobs:
           echo "payload:" > lancidr.txt
           curl -sSL ${lan_cidr} | perl -ne '/(.+\/\d+)/ && print "  - |$1|\n"' | sed "s/|/'/g" >> lancidr.txt
 
+      - name: Convert txt rulesets to mrs
+        run: ./.github/convert_mrs.sh
+
       - name: Move files to publish directory
         run: |
           mkdir -p publish
           cp *.txt ./publish/
+          cp -r mrs ./publish/
 
       - name: Release and upload assets
         uses: softprops/action-gh-release@v3
@@ -119,7 +123,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ./publish/*
+            ./publish/*.txt
+            ./publish/mrs/*.mrs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -138,6 +143,6 @@ jobs:
       - name: Purge jsdelivr CDN
         run: |
           cd publish || exit 1
-          for file in $(ls); do
+          for file in $(find . -type f -printf "%P\n"); do
             curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@release/${file}"
           done
