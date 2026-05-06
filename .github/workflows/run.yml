@@ -33,10 +33,26 @@ jobs:
           echo "telegram_cidr=https://raw.githubusercontent.com/Loyalsoldier/geoip/release/text/telegram.txt" >> $GITHUB_ENV
         shell: bash
 
+      - name: Checkout conversion script
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: .github/convert_mrs.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Preserve conversion script
+        run: cp .github/convert_mrs.sh /tmp/convert_mrs.sh
+
       - name: Checkout the "hidden" branch
         uses: actions/checkout@v6
         with:
           ref: hidden
+
+      - name: Restore conversion script
+        run: |
+          mkdir -p .github
+          cp /tmp/convert_mrs.sh .github/convert_mrs.sh
+          chmod +x .github/convert_mrs.sh
 
       - name: Generate icloud.txt file
         run: |
@@ -106,10 +122,14 @@ jobs:
           echo "payload:" > lancidr.txt
           curl -sSL ${lan_cidr} | perl -ne '/(.+\/\d+)/ && print "  - |$1|\n"' | sed "s/|/'/g" >> lancidr.txt
 
+      - name: Convert txt rulesets to mrs
+        run: ./.github/convert_mrs.sh
+
       - name: Move files to publish directory
         run: |
           mkdir -p publish
           cp *.txt ./publish/
+          cp -r mrs ./publish/
 
       - name: Release and upload assets
         uses: softprops/action-gh-release@v3
@@ -119,7 +139,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ./publish/*
+            ./publish/*.txt
+            ./publish/mrs/*.mrs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -138,6 +159,6 @@ jobs:
       - name: Purge jsdelivr CDN
         run: |
           cd publish || exit 1
-          for file in $(ls); do
+          for file in $(find . -type f -printf "%P\n"); do
             curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@release/${file}"
           done
